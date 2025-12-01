@@ -322,8 +322,7 @@ def index():
                         <button class="w-24 h-12 bg-primary text-white text-lg font-bold rounded-xl control-button" onclick="moveCar('left')">A</button>
                         <button class="w-24 h-12 bg-primary text-white text-lg font-bold rounded-xl control-button" onclick="moveCar('right')">D</button>
                     </div>
-                    <!-- Backward -->
-                    <button class="w-24 h-12 bg-primary text-white text-lg font-bold rounded-xl control-button" onclick="moveCar('backward')">S</button>
+                    <button class="w-24 h-12 bg-primary text-white text-lg font-bold rounded-xl control-button" onclick="moveCar('back')">S</button>
                 </div>
             </div>
 
