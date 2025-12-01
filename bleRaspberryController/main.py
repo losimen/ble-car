@@ -255,11 +255,19 @@ def start_detection():
 @app.route('/api/detect/status', methods=['GET'])
 def get_detection_status():
     """Endpoint for the frontend to poll for status and results."""
+    current_db = None
+    if sdr_driver and global_state['sdr_ready']:
+        try:
+            current_db = round(sdr_driver.watch(), 2)
+        except:
+            pass
+    
     return jsonify({
         'running': global_state['detection_running'],
         'results': global_state['detection_results'],
         'car_connected': global_state['car_connected'],
-        'sdr_ready': global_state['sdr_ready']
+        'sdr_ready': global_state['sdr_ready'],
+        'current_db': current_db
     })
 
 

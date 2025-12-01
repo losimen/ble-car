@@ -9,7 +9,8 @@ const statusIndicators = {
     initMsg: document.getElementById('initMessage'),
     detectBtn: document.getElementById('detectButton'),
     detectionStatus: document.getElementById('detectionStatus'),
-    maxSignal: document.getElementById('maxSignal')
+    maxSignal: document.getElementById('maxSignal'),
+    currentDb: document.getElementById('currentDb')
 };
 
 let detectionInterval = null;
@@ -222,6 +223,22 @@ async function pollStatus() {
         const data = await response.json();
         
         updateStatus(data.car_connected, data.sdr_ready, data.running);
+        
+        // Update current dB display
+        if (data.current_db !== null) {
+            statusIndicators.currentDb.textContent = `${data.current_db} dB`;
+            // Color based on signal strength
+            if (data.current_db > -60) {
+                statusIndicators.currentDb.className = 'text-2xl font-bold text-red-400 ml-2';
+            } else if (data.current_db > -90) {
+                statusIndicators.currentDb.className = 'text-2xl font-bold text-yellow-400 ml-2';
+            } else {
+                statusIndicators.currentDb.className = 'text-2xl font-bold text-green-400 ml-2';
+            }
+        } else {
+            statusIndicators.currentDb.textContent = '-- dB';
+            statusIndicators.currentDb.className = 'text-2xl font-bold text-gray-500 ml-2';
+        }
         
         // Update plot with current results
         drawPolarPlot(data.results);

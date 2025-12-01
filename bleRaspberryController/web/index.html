@@ -53,6 +53,12 @@
                     SDR: Not Ready
                 </span>
             </div>
+            
+            <!-- Current dB Display -->
+            <div class="mb-4 p-3 bg-gray-800 rounded-lg text-center">
+                <span class="text-gray-400 text-sm">Current Signal:</span>
+                <span id="currentDb" class="text-2xl font-bold text-green-400 ml-2">-- dB</span>
+            </div>
             <button id="initButton" onclick="initDrivers()" class="w-full bg-primary text-white py-2 rounded-lg font-bold hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 control-button">
                 Initialize & Connect Drivers
             </button>
