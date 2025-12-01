@@ -1,4 +1,5 @@
 import asyncio
+import atexit
 import threading
 import time
 import numpy as np
@@ -27,20 +28,64 @@ DETECTION_THREAD = None
 # Dedicated event loop for BLE operations (runs in its own thread)
 ble_loop = None
 ble_thread = None
+ble_loop_ready = threading.Event()  # Synchronization primitive
 
 def start_ble_event_loop():
     """Runs the dedicated BLE event loop in a background thread."""
     global ble_loop
     ble_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(ble_loop)
+    ble_loop_ready.set()  # Signal that loop is ready
+    print("BLE event loop started and ready")
     ble_loop.run_forever()
+
+def ensure_ble_loop_running():
+    """Ensures BLE event loop thread is running. Call before any BLE operation."""
+    global ble_thread
+    if ble_thread is None or not ble_thread.is_alive():
+        ble_loop_ready.clear()
+        ble_thread = threading.Thread(target=start_ble_event_loop, daemon=True, name="BLE-EventLoop")
+        ble_thread.start()
+        # Wait for loop to actually be running (max 5s)
+        if not ble_loop_ready.wait(timeout=5.0):
+            raise RuntimeError("BLE event loop failed to start")
+        print(f"BLE thread started: {ble_thread.name}, alive={ble_thread.is_alive()}")
 
 def run_in_ble_loop(coro):
     """Schedule a coroutine in the BLE thread's event loop and wait for result."""
+    ensure_ble_loop_running()
     if ble_loop is None or not ble_loop.is_running():
         raise RuntimeError("BLE event loop is not running")
     future = asyncio.run_coroutine_threadsafe(coro, ble_loop)
     return future.result(timeout=30)  # 30s timeout for BLE operations
+
+def shutdown_ble():
+    """Gracefully shutdown BLE: disconnect car, stop event loop, join thread."""
+    global ble_loop, ble_thread, car_driver
+    
+    print("Shutting down BLE...")
+    
+    # Disconnect car if connected
+    if car_driver and car_driver.is_connected:
+        try:
+            run_in_ble_loop(car_driver.disconnect())
+        except Exception as e:
+            print(f"Error disconnecting car: {e}")
+    
+    # Stop the event loop
+    if ble_loop and ble_loop.is_running():
+        ble_loop.call_soon_threadsafe(ble_loop.stop)
+    
+    # Wait for thread to finish
+    if ble_thread and ble_thread.is_alive():
+        ble_thread.join(timeout=2.0)
+        print(f"BLE thread joined: alive={ble_thread.is_alive()}")
+    
+    ble_loop = None
+    ble_thread = None
+    print("BLE shutdown complete")
+
+atexit.register(shutdown_ble)
 
 # --- Configuration ---
 WATCH_FREQ_MHZ = 433.4
@@ -117,14 +162,11 @@ async def async_move_and_wait(direction, duration):
 @app.route('/api/init_drivers', methods=['POST'])
 def init_drivers():
     """Initializes and connects the car and SDR drivers."""
-    global car_driver, sdr_driver, global_state, ble_thread
+    global car_driver, sdr_driver, global_state
     
     try:
-        # Start BLE event loop thread if not already running
-        if ble_thread is None or not ble_thread.is_alive():
-            ble_thread = threading.Thread(target=start_ble_event_loop, daemon=True)
-            ble_thread.start()
-            time.sleep(0.1)  # Give loop time to start
+        # Ensure BLE event loop is running (handles thread creation/restart)
+        ensure_ble_loop_running()
         
         # Initialize SDR (synchronous)
         sdr_driver = RtlSdrDriver(WATCH_FREQ_MHZ, SAMPLE_RATE_HZ, 0)
