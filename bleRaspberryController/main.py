@@ -6,9 +6,6 @@ import json
 from enum import Enum
 from flask import Flask, render_template_string, request, jsonify
 from rtl_sdr_driver import RtlSdrDriver
-import time
-import numpy as np
-import asyncio
 from ble_car_driver import BleCarDriver, CarMove
 
 app = Flask(__name__)
@@ -26,6 +23,24 @@ global_state = {
 car_driver = None
 sdr_driver = None
 DETECTION_THREAD = None
+
+# Dedicated event loop for BLE operations (runs in its own thread)
+ble_loop = None
+ble_thread = None
+
+def start_ble_event_loop():
+    """Runs the dedicated BLE event loop in a background thread."""
+    global ble_loop
+    ble_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(ble_loop)
+    ble_loop.run_forever()
+
+def run_in_ble_loop(coro):
+    """Schedule a coroutine in the BLE thread's event loop and wait for result."""
+    if ble_loop is None or not ble_loop.is_running():
+        raise RuntimeError("BLE event loop is not running")
+    future = asyncio.run_coroutine_threadsafe(coro, ble_loop)
+    return future.result(timeout=30)  # 30s timeout for BLE operations
 
 # --- Configuration ---
 WATCH_FREQ_MHZ = 433.4
@@ -45,7 +60,7 @@ def run_detection_cycle():
     """
     global global_state, car_driver, sdr_driver
     
-    if not car_driver.is_connected() or not sdr_driver:
+    if not car_driver.is_connected or not sdr_driver:
         print("ERROR: Drivers not ready for detection.")
         global_state['detection_running'] = False
         return
@@ -64,12 +79,9 @@ def run_detection_cycle():
 
         # 1. Car Movement: Rotate to the new position
         try:
-            # Running async move in a sync thread requires a temporary loop
-            asyncio.run(
-                async_move_and_wait(CarMove.RIGHT, ROTATION_STEP_DEGREES / 360 * 1.0)
-            )
+            run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, ROTATION_STEP_DEGREES / 360 * 1.0))
         except Exception as e:
-            print(f"ASYNC ERROR during move: {e}")
+            print(f"BLE ERROR during move: {e}")
             global_state['detection_running'] = False
             break
 
@@ -105,18 +117,22 @@ async def async_move_and_wait(direction, duration):
 @app.route('/api/init_drivers', methods=['POST'])
 def init_drivers():
     """Initializes and connects the car and SDR drivers."""
-    global car_driver, sdr_driver, global_state
+    global car_driver, sdr_driver, global_state, ble_thread
     
     try:
+        # Start BLE event loop thread if not already running
+        if ble_thread is None or not ble_thread.is_alive():
+            ble_thread = threading.Thread(target=start_ble_event_loop, daemon=True)
+            ble_thread.start()
+            time.sleep(0.1)  # Give loop time to start
+        
         # Initialize SDR (synchronous)
         sdr_driver = RtlSdrDriver(WATCH_FREQ_MHZ, SAMPLE_RATE_HZ, 0)
         global_state['sdr_ready'] = True
 
-        # Initialize and connect Car (asynchronous)
+        # Initialize and connect Car (in the dedicated BLE event loop)
         car_driver = BleCarDriver()
-        
-        # Run the async connection in a new event loop/thread
-        connect_success = asyncio.run(car_driver.connect())
+        connect_success = run_in_ble_loop(car_driver.connect())
         
         if connect_success:
             global_state['car_connected'] = True
@@ -139,7 +155,7 @@ def move_car(direction):
         
     try:
         move_command = CarMove[direction.upper()]
-        asyncio.run(async_move_and_wait(move_command, 1))
+        run_in_ble_loop(async_move_and_wait(move_command, 1))
         
         return jsonify({'status': 'success', 'message': f'Car moved {direction}.'})
     except KeyError:
