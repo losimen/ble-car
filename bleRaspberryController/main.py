@@ -126,7 +126,7 @@ def run_detection_cycle():
 
         # 1. Car Movement: Rotate to the new position
         try:
-            run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, ROTATION_STEP_DEGREES / 360 * 1.0))
+            run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, 0.3))
         except Exception as e:
             print(f"BLE ERROR during move: {e}")
             global_state['detection_running'] = False
