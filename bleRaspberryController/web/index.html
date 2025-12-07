@@ -33,9 +33,45 @@
         .control-button:active {
             transform: scale(0.95);
         }
+        
+        /* Login Overlay */
+        #loginOverlay {
+            backdrop-filter: blur(8px);
+        }
+        #loginOverlay.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-4 sm:p-8 font-sans">
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="fixed inset-0 bg-gray-900/90 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Access Required</h2>
+                <p class="text-gray-500 text-sm mt-1">Enter password to continue</p>
+            </div>
+            <form id="loginForm" onsubmit="return handleLogin(event)">
+                <input type="password" 
+                       id="passwordInput" 
+                       placeholder="Enter password" 
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-center text-lg tracking-widest"
+                       autocomplete="current-password">
+                <p id="loginError" class="text-red-500 text-sm text-center mt-2 hidden">Incorrect password</p>
+                <button type="submit" 
+                        class="w-full mt-4 bg-primary text-white py-3 rounded-lg font-bold hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-150 ease-in-out">
+                    Unlock
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
     <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl p-6 lg:p-10">
         <h1 class="text-3xl font-bold text-center text-primary mb-2">Autonomous Signal Mapping Car</h1>
         <p class="text-center text-gray-600 mb-6">Control BLE Car and measure RTL-SDR signal strength.</p>
@@ -114,16 +150,36 @@
                     <canvas id="polarCanvas" width="300" height="300" class="bg-gray-100 rounded-full border border-gray-300"></canvas>
                 </div>
                 <div id="maxSignal" class="mt-4 text-lg font-semibold text-gray-700">Max Signal: N/A</div>
+                
+                <!-- Signal Strength Table -->
+                <div class="mt-4 w-full max-w-xs">
+                    <table id="signalTable" class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-gray-200">
+                                <th class="py-2 px-3 text-left font-semibold text-gray-700 rounded-tl-lg">Angle</th>
+                                <th class="py-2 px-3 text-right font-semibold text-gray-700 rounded-tr-lg">Signal (dB)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signalTableBody">
+                            <tr><td colspan="2" class="py-3 text-center text-gray-400">No scan data</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
         <!-- Calibration Section -->
         <div class="mt-8 p-4 border border-gray-200 rounded-lg shadow-inner bg-gray-50">
-            <h2 class="text-xl font-semibold text-gray-700 mb-3">Calibration</h2>
-            <p class="text-sm text-gray-500 mb-4">Test rotation timing by specifying how long (in seconds) the car should rotate. This uses the same rotation command as during the triangulation process.</p>
-            <form id="calibrateForm" class="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-                <div class="flex-1 w-full sm:w-auto">
-                    <label for="rotationDuration" class="block text-sm font-medium text-gray-700 mb-1">Rotation Duration (seconds)</label>
+            <h2 class="text-xl font-semibold text-gray-700 mb-3">Scan Settings</h2>
+            <p class="text-sm text-gray-500 mb-4">Configure the timing for the triangulation scan. These values are saved and used during the 360° scan.</p>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <!-- Step Rotation Time -->
+                <div>
+                    <label for="rotationDuration" class="block text-sm font-medium text-gray-700 mb-1">
+                        Step Rotation Time (s)
+                        <span class="text-gray-400 font-normal">- how long car rotates per step</span>
+                    </label>
                     <input type="number" 
                            id="rotationDuration" 
                            name="rotationDuration" 
@@ -131,15 +187,42 @@
                            max="30" 
                            step="0.01" 
                            value="0.3" 
-                           placeholder="e.g., 0.75"
+                           placeholder="e.g., 0.7"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-150 ease-in-out">
                 </div>
-                <button type="submit" 
-                        id="calibrateButton"
-                        class="w-full sm:w-auto bg-orange-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-600 focus:outline-none focus:ring-4 focus:ring-orange-300 control-button transition duration-150 ease-in-out disabled:opacity-50">
-                    Submit
+                
+                <!-- Measurement Time -->
+                <div>
+                    <label for="measurementTime" class="block text-sm font-medium text-gray-700 mb-1">
+                        Measurement Time (s)
+                        <span class="text-gray-400 font-normal">- how long to measure signal</span>
+                    </label>
+                    <input type="number" 
+                           id="measurementTime" 
+                           name="measurementTime" 
+                           min="0.1" 
+                           max="10" 
+                           step="0.1" 
+                           value="0.5" 
+                           placeholder="e.g., 0.5"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-150 ease-in-out">
+                </div>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="button" 
+                        id="saveSettingsButton"
+                        onclick="saveSettings()"
+                        class="flex-1 bg-primary text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 control-button transition duration-150 ease-in-out">
+                    Save Settings
                 </button>
-            </form>
+                <button type="button" 
+                        id="calibrateButton"
+                        onclick="testRotation()"
+                        class="flex-1 bg-orange-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-600 focus:outline-none focus:ring-4 focus:ring-orange-300 control-button transition duration-150 ease-in-out disabled:opacity-50">
+                    Test Rotation
+                </button>
+            </div>
             <p id="calibrateMessage" class="text-sm mt-2 text-gray-500"></p>
         </div>
     </div>

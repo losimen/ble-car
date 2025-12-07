@@ -17,7 +17,7 @@ app = Flask(__name__, static_folder=WEB_DIR)
 # --- Config File Management ---
 def load_config():
     """Load configuration from config.json file."""
-    default_config = {'rotation_duration': 0.3, 'speed': 15}
+    default_config = {'rotation_duration': 0.3, 'measurement_time': 0.5, 'speed': 15}
     try:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, 'r') as f:
@@ -159,10 +159,11 @@ def run_detection_cycle():
             global_state['detection_running'] = False
             break
 
-        # 2. SDR Measurement: Watch for a specific time
+        # 2. SDR Measurement: Watch for the configured measurement time
+        measurement_time = config.get('measurement_time', 0.5)
         readings = []
         start_time = time.time()
-        while time.time() - start_time < MEASUREMENT_TIME_SECONDS:
+        while time.time() - start_time < measurement_time:
             power = sdr_driver.watch()
             readings.append(power)
         
@@ -330,7 +331,8 @@ def get_detection_status():
         'car_connected': global_state['car_connected'],
         'sdr_ready': global_state['sdr_ready'],
         'current_db': current_db,
-        'rotation_duration': config.get('rotation_duration', 0.3)
+        'rotation_duration': config.get('rotation_duration', 0.3),
+        'measurement_time': config.get('measurement_time', 0.5)
     })
 
 
@@ -339,6 +341,46 @@ def get_config():
     """Returns the saved configuration."""
     config = load_config()
     return jsonify({'status': 'success', 'config': config})
+
+
+@app.route('/api/settings', methods=['POST'])
+def save_settings():
+    """Saves scan settings (rotation_duration and measurement_time)."""
+    try:
+        data = request.get_json()
+        config = load_config()
+        
+        if 'rotation_duration' in data:
+            rotation_duration = float(data['rotation_duration'])
+            if 0.01 <= rotation_duration <= 30:
+                config['rotation_duration'] = rotation_duration
+        
+        if 'measurement_time' in data:
+            measurement_time = float(data['measurement_time'])
+            if 0.1 <= measurement_time <= 10:
+                config['measurement_time'] = measurement_time
+        
+        save_config(config)
+        return jsonify({'status': 'success', 'message': 'Settings saved.', 'config': config})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    """Verifies password for simple authentication."""
+    try:
+        data = request.get_json()
+        password = data.get('password', '')
+        config = load_config()
+        correct_password = config.get('password', 'car123')
+        
+        if password == correct_password:
+            return jsonify({'status': 'success', 'message': 'Login successful'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Incorrect password'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 
 
 @app.route('/')

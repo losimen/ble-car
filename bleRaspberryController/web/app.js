@@ -1,7 +1,71 @@
 const API_URL = '/live-port-5000/api';
+const LOGIN_KEY = 'ble_car_logged_in';
+
+// --- Authentication ---
+function checkLoginStatus() {
+    const isLoggedIn = localStorage.getItem(LOGIN_KEY) === 'true';
+    const loginOverlay = document.getElementById('loginOverlay');
+    
+    if (loginOverlay) {
+        if (isLoggedIn) {
+            loginOverlay.classList.add('hidden');
+        } else {
+            loginOverlay.classList.remove('hidden');
+            // Focus password input
+            setTimeout(() => {
+                const passwordInput = document.getElementById('passwordInput');
+                if (passwordInput) passwordInput.focus();
+            }, 100);
+        }
+    }
+    return isLoggedIn;
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    
+    const passwordInput = document.getElementById('passwordInput');
+    const loginError = document.getElementById('loginError');
+    const password = passwordInput.value;
+    
+    try {
+        const response = await fetch(`${API_URL}/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password })
+        });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            localStorage.setItem(LOGIN_KEY, 'true');
+            loginError.classList.add('hidden');
+            checkLoginStatus();
+        } else {
+            loginError.classList.remove('hidden');
+            passwordInput.value = '';
+            passwordInput.focus();
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        loginError.textContent = 'Connection error';
+        loginError.classList.remove('hidden');
+    }
+    
+    return false;
+}
+
+function logout() {
+    localStorage.removeItem(LOGIN_KEY);
+    checkLoginStatus();
+}
+
+// Check login on page load
+checkLoginStatus();
+
 const canvas = document.getElementById('polarCanvas');
 const ctx = canvas.getContext('2d');
-
 const statusIndicators = {
     car: document.getElementById('carStatus'),
     sdr: document.getElementById('sdrStatus'),
@@ -144,6 +208,10 @@ function drawPolarPlot(results) {
     
     // 2. Data Plotting
     const dataPoints = Object.entries(results);
+    
+    // Update the signal table
+    updateSignalTable(results);
+    
     if (dataPoints.length === 0) {
          ctx.font = '16px sans-serif';
          ctx.textAlign = 'center';
@@ -160,9 +228,9 @@ function drawPolarPlot(results) {
     
     let maxPower = -Infinity;
     let maxAngle = 0;
-
-    ctx.lineWidth = 3;
-    ctx.beginPath();
+    
+    // Store point positions for drawing dots later
+    const pointPositions = [];
     
     dataPoints.forEach(([angleStr, power], index) => {
         const angleDeg = parseFloat(angleStr);
@@ -184,17 +252,16 @@ function drawPolarPlot(results) {
             maxAngle = angleDeg;
         }
         
-        // Draw line segment
-        if (index === 0) {
-            ctx.moveTo(x, y);
-        } else {
-            ctx.lineTo(x, y);
-        }
-        
-        // Draw a dot for the point
+        // Store position for later dot drawing
+        pointPositions.push({ x, y, angleDeg, angleRad, normalizedPower });
+    });
+    
+    // Draw all dots (separate from any path building)
+    pointPositions.forEach(({ x, y, angleDeg, angleRad, normalizedPower }) => {
+        // Draw a dot for the point - red for strong signal, green for weak
         ctx.fillStyle = normalizedPower > 0.8 ? '#dc2626' : '#10b981';
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.arc(x, y, 5, 0, 2 * Math.PI);
         ctx.fill();
 
         // Draw angle label for the point
@@ -203,19 +270,48 @@ function drawPolarPlot(results) {
         ctx.fillStyle = '#1f2937';
         
         if (dataPoints.length < 20) { // Only label a few points to avoid clutter
-            const labelRadius = radius + 10;
+            const labelRadius = radius + 15;
             const labelX = center + labelRadius * Math.cos(angleRad);
             const labelY = center + labelRadius * Math.sin(angleRad);
             ctx.fillText(`${angleDeg}°`, labelX, labelY);
         }
     });
-
-    ctx.closePath();
-    ctx.strokeStyle = '#4f46e5'; // Primary line color
-    ctx.stroke();
     
     // Display max signal result
     statusIndicators.maxSignal.textContent = `Max Signal: ${maxPower.toFixed(2)} dB at ${maxAngle}°`;
+}
+
+// --- Signal Table Update ---
+function updateSignalTable(results) {
+    const tableBody = document.getElementById('signalTableBody');
+    if (!tableBody) return;
+    
+    const dataPoints = Object.entries(results);
+    
+    if (dataPoints.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="2" class="py-3 text-center text-gray-400">No scan data</td></tr>';
+        return;
+    }
+    
+    // Sort by angle
+    dataPoints.sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+    
+    // Find max power for highlighting
+    const maxPower = Math.max(...dataPoints.map(([_, power]) => power));
+    
+    let html = '';
+    dataPoints.forEach(([angle, power]) => {
+        const isMax = power === maxPower;
+        const rowClass = isMax ? 'bg-green-100 font-semibold' : (parseInt(angle) % 90 === 0 ? 'bg-gray-50' : '');
+        const powerClass = isMax ? 'text-green-600' : (power > -60 ? 'text-red-500' : 'text-gray-700');
+        
+        html += `<tr class="${rowClass}">
+            <td class="py-1.5 px-3 border-b border-gray-100">${angle}°</td>
+            <td class="py-1.5 px-3 border-b border-gray-100 text-right ${powerClass}">${power.toFixed(2)} dB</td>
+        </tr>`;
+    });
+    
+    tableBody.innerHTML = html;
 }
 
 async function pollStatus() {
@@ -332,6 +428,14 @@ async function loadSavedConfig() {
                 }
             }
             
+            // Apply saved measurement time
+            if (data.config.measurement_time !== undefined) {
+                const measurementInput = document.getElementById('measurementTime');
+                if (measurementInput) {
+                    measurementInput.value = data.config.measurement_time;
+                }
+            }
+            
             console.log('Loaded saved config:', data.config);
         }
     } catch (error) {
@@ -339,21 +443,85 @@ async function loadSavedConfig() {
     }
 }
 
+// --- Save Settings ---
+async function saveSettings() {
+    const calibrateMsg = document.getElementById('calibrateMessage');
+    const rotationDuration = document.getElementById('rotationDuration').value;
+    const measurementTime = document.getElementById('measurementTime').value;
+    
+    calibrateMsg.textContent = 'Saving settings...';
+    calibrateMsg.className = 'text-sm mt-2 text-blue-600';
+    
+    try {
+        const response = await fetch(`${API_URL}/settings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                rotation_duration: parseFloat(rotationDuration),
+                measurement_time: parseFloat(measurementTime)
+            })
+        });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            calibrateMsg.textContent = 'Settings saved successfully!';
+            calibrateMsg.className = 'text-sm mt-2 text-green-600';
+            // Update rotation duration display
+            if (statusIndicators.rotationDurationDisplay) {
+                statusIndicators.rotationDurationDisplay.textContent = `${rotationDuration}s`;
+            }
+        } else {
+            calibrateMsg.textContent = 'Error: ' + data.message;
+            calibrateMsg.className = 'text-sm mt-2 text-red-600';
+        }
+    } catch (error) {
+        console.error("Save settings error:", error);
+        calibrateMsg.textContent = 'Failed to save settings. Check server console.';
+        calibrateMsg.className = 'text-sm mt-2 text-red-600';
+    }
+}
+
+// --- Test Rotation ---
+async function testRotation() {
+    const calibrateBtn = document.getElementById('calibrateButton');
+    const calibrateMsg = document.getElementById('calibrateMessage');
+    const rotationDuration = document.getElementById('rotationDuration').value;
+    
+    calibrateBtn.disabled = true;
+    calibrateMsg.textContent = `Testing rotation for ${rotationDuration} seconds...`;
+    calibrateMsg.className = 'text-sm mt-2 text-blue-600';
+    
+    try {
+        const response = await fetch(`${API_URL}/calibrate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ duration: parseFloat(rotationDuration), save: false })
+        });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            calibrateMsg.textContent = 'Rotation test completed!';
+            calibrateMsg.className = 'text-sm mt-2 text-green-600';
+        } else {
+            calibrateMsg.textContent = 'Error: ' + data.message;
+            calibrateMsg.className = 'text-sm mt-2 text-red-600';
+        }
+    } catch (error) {
+        console.error("Test rotation error:", error);
+        calibrateMsg.textContent = 'Rotation test failed. Check server console.';
+        calibrateMsg.className = 'text-sm mt-2 text-red-600';
+    } finally {
+        calibrateBtn.disabled = false;
+    }
+}
+
 // Start polling when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     startPolling();
     loadSavedConfig();  // Load saved config values
-    
-    // Setup calibration form handler
-    const calibrateForm = document.getElementById('calibrateForm');
-    if (calibrateForm) {
-        calibrateForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const duration = document.getElementById('rotationDuration').value;
-            if (duration && parseFloat(duration) > 0) {
-                calibrateRotation(duration);
-            }
-        });
-    }
 });
 
