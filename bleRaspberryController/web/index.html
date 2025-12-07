@@ -150,6 +150,21 @@
                         Cancel & Clear
                     </button>
                 </div>
+                
+                <!-- Scan Progress Display -->
+                <div id="scanProgress" class="w-full mt-3 p-3 bg-gray-100 rounded-lg hidden">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-medium text-gray-700">Scanning...</span>
+                        <span id="scanStep" class="text-sm text-primary font-bold">Step 1/8</span>
+                    </div>
+                    <div class="w-full bg-gray-300 rounded-full h-2.5 mb-2">
+                        <div id="scanProgressBar" class="bg-primary h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div class="text-center">
+                        <span id="scanAction" class="text-lg font-semibold text-secondary">📡 Measuring at 0°</span>
+                    </div>
+                </div>
+                
                 <p id="detectionStatus" class="text-sm mt-2 text-gray-600">Idle. Press 'Start Scan' to begin.</p>
                 <div class="mt-4 w-full max-w-xs">
                     <canvas id="polarCanvas" width="300" height="300" class="bg-gray-100 rounded-full border border-gray-300"></canvas>

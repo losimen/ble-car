@@ -101,10 +101,49 @@ function updateStatus(carConnected, sdrReady, isRunning) {
     
     // Detection Running State
     isDetectionRunning = isRunning;
-    if (isRunning) {
-        statusIndicators.detectionStatus.textContent = "Scanning in progress... Do not interrupt.";
+    
+    // Show/hide scan progress
+    const scanProgress = document.getElementById('scanProgress');
+    if (scanProgress) {
+        if (isRunning) {
+            scanProgress.classList.remove('hidden');
+            statusIndicators.detectionStatus.textContent = "Scanning in progress...";
+        } else {
+            scanProgress.classList.add('hidden');
+            statusIndicators.detectionStatus.textContent = "Scan complete. Ready for new scan.";
+        }
+    }
+}
+
+// Update scan progress display
+function updateScanProgress(data) {
+    if (!data.running) return;
+    
+    const scanStep = document.getElementById('scanStep');
+    const scanProgressBar = document.getElementById('scanProgressBar');
+    const scanAction = document.getElementById('scanAction');
+    
+    if (!scanStep || !scanProgressBar || !scanAction) return;
+    
+    const currentStep = Math.floor(data.current_angle / data.step_degrees) + 1;
+    const totalSteps = data.total_steps;
+    const resultsCount = Object.keys(data.results).length;
+    
+    // Update step counter
+    scanStep.textContent = `Step ${currentStep}/${totalSteps}`;
+    
+    // Update progress bar (based on completed results)
+    const progress = (resultsCount / totalSteps) * 100;
+    scanProgressBar.style.width = `${progress}%`;
+    
+    // Determine if measuring or moving (if results count < current step, still measuring)
+    if (resultsCount < currentStep) {
+        scanAction.textContent = `📡 Measuring at ${data.current_angle}°`;
+        scanAction.className = 'text-lg font-semibold text-secondary';
     } else {
-        statusIndicators.detectionStatus.textContent = "Scan complete. Ready for new scan.";
+        const nextAngle = data.current_angle + data.step_degrees;
+        scanAction.textContent = `🚗 Moving to ${nextAngle}°`;
+        scanAction.className = 'text-lg font-semibold text-orange-500';
     }
 }
 
@@ -360,6 +399,11 @@ async function pollStatus() {
         // Update rotation duration display
         if (data.rotation_duration !== undefined && statusIndicators.rotationDurationDisplay) {
             statusIndicators.rotationDurationDisplay.textContent = `${data.rotation_duration}s`;
+        }
+        
+        // Update scan progress if running
+        if (data.running) {
+            updateScanProgress(data);
         }
 
     } catch (error) {

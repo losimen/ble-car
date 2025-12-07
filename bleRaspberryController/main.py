@@ -139,6 +139,7 @@ def run_detection_cycle():
 
     print("--- STARTING DETECTION CYCLE ---")
     global_state['detection_results'] = {}
+    config = load_config()
     
     # Use a loop to perform the 360-degree scan
     for step in range(TOTAL_STEPS):
@@ -149,17 +150,7 @@ def run_detection_cycle():
         global_state['current_angle'] = current_angle
         print(f"Detection: Step {step+1}/{TOTAL_STEPS} at {current_angle}°")
 
-        # 1. Car Movement: Rotate to the new position (using saved rotation_duration)
-        config = load_config()
-        rotation_duration = config.get('rotation_duration', 0.3)
-        try:
-            run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, rotation_duration))
-        except Exception as e:
-            print(f"BLE ERROR during move: {e}")
-            global_state['detection_running'] = False
-            break
-
-        # 2. SDR Measurement: Watch for the configured measurement time
+        # 1. SDR Measurement FIRST: Measure at current position
         measurement_time = config.get('measurement_time', 0.5)
         readings = []
         start_time = time.time()
@@ -167,13 +158,23 @@ def run_detection_cycle():
             power = sdr_driver.watch()
             readings.append(power)
         
-        # 3. Process and Store Result
+        # 2. Process and Store Result
         if readings:
             avg_power = np.mean(readings)
             global_state['detection_results'][current_angle] = round(avg_power, 2)
             print(f"Result at {current_angle}°: {avg_power:.2f} dB")
         
-        time.sleep(0.1) # Brief pause before next step
+        # 3. Car Movement AFTER: Rotate to the next position (skip on last step)
+        if step < TOTAL_STEPS - 1:
+            rotation_duration = config.get('rotation_duration', 0.3)
+            try:
+                run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, rotation_duration))
+            except Exception as e:
+                print(f"BLE ERROR during move: {e}")
+                global_state['detection_running'] = False
+                break
+            
+            time.sleep(0.1) # Brief pause before next measurement
 
     global_state['detection_running'] = False
     print("--- DETECTION CYCLE COMPLETE ---")
@@ -350,7 +351,10 @@ def get_detection_status():
         'sdr_ready': global_state['sdr_ready'],
         'current_db': current_db,
         'rotation_duration': config.get('rotation_duration', 0.3),
-        'measurement_time': config.get('measurement_time', 0.5)
+        'measurement_time': config.get('measurement_time', 0.5),
+        'current_angle': global_state.get('current_angle', 0),
+        'total_steps': TOTAL_STEPS,
+        'step_degrees': ROTATION_STEP_DEGREES
     })
 
 
