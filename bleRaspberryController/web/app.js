@@ -185,6 +185,23 @@ async function startDetection() {
     }
 }
 
+// --- Stop Detection ---
+async function stopDetection() {
+    try {
+        const response = await fetch(`${API_URL}/detect/stop`, { method: 'POST' });
+        const data = await response.json();
+        
+        // Clear the plot and table
+        drawPolarPlot({});
+        statusIndicators.maxSignal.textContent = "Max Signal: N/A";
+        statusIndicators.detectionStatus.textContent = data.message;
+        
+        console.log(data.message);
+    } catch (error) {
+        console.error("Stop detection error:", error);
+    }
+}
+
 // --- Polling and Plotting ---
 function drawPolarPlot(results) {
     const size = canvas.width;

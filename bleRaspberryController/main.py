@@ -208,7 +208,12 @@ def init_drivers():
         
         if connect_success:
             global_state['car_connected'] = True
-            return jsonify({'status': 'success', 'message': 'Drivers initialized and car connected.'})
+            # Apply saved speed from config
+            config = load_config()
+            saved_speed = config.get('speed', 15)
+            car_driver.set_speed(saved_speed)
+            print(f"Applied saved speed: {saved_speed}%")
+            return jsonify({'status': 'success', 'message': f'Drivers initialized and car connected. Speed set to {saved_speed}%.'})
         else:
             global_state['sdr_ready'] = False
             return jsonify({'status': 'error', 'message': 'SDR initialized, but failed to connect car.'})
@@ -283,6 +288,19 @@ def start_detection():
     
     return jsonify({'status': 'running', 'message': 'Detection cycle started in background.'})
 
+
+@app.route('/api/detect/stop', methods=['POST'])
+def stop_detection():
+    """Stops the detection cycle and clears results."""
+    global global_state
+    
+    if global_state['detection_running']:
+        global_state['detection_running'] = False
+        global_state['detection_results'] = {}
+        return jsonify({'status': 'success', 'message': 'Detection stopped and results cleared.'})
+    else:
+        global_state['detection_results'] = {}
+        return jsonify({'status': 'success', 'message': 'Results cleared.'})
 
 @app.route('/api/calibrate', methods=['POST'])
 def calibrate():

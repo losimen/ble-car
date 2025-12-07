@@ -142,9 +142,14 @@
                     <span id="rotationDurationDisplay" class="text-lg font-bold text-primary ml-2">0.3s</span>
                 </div>
                 
-                <button id="detectButton" onclick="startDetection()" class="w-full bg-secondary text-white py-3 rounded-xl font-bold text-lg hover:bg-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-300 control-button transition duration-150 ease-in-out disabled:opacity-50" disabled>
-                    Start Full 360° Scan
-                </button>
+                <div class="w-full flex gap-2">
+                    <button id="detectButton" onclick="startDetection()" class="flex-1 bg-secondary text-white py-3 rounded-xl font-bold text-lg hover:bg-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-300 control-button transition duration-150 ease-in-out disabled:opacity-50" disabled>
+                        Start Scan
+                    </button>
+                    <button id="stopDetectButton" onclick="stopDetection()" class="flex-1 bg-red-500 text-white py-3 rounded-xl font-bold text-lg hover:bg-red-600 focus:outline-none focus:ring-4 focus:ring-red-300 control-button transition duration-150 ease-in-out">
+                        Cancel & Clear
+                    </button>
+                </div>
                 <p id="detectionStatus" class="text-sm mt-2 text-gray-600">Idle. Press 'Start Scan' to begin.</p>
                 <div class="mt-4 w-full max-w-xs">
                     <canvas id="polarCanvas" width="300" height="300" class="bg-gray-100 rounded-full border border-gray-300"></canvas>
