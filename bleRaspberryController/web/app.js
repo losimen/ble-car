@@ -10,7 +10,8 @@ const statusIndicators = {
     detectBtn: document.getElementById('detectButton'),
     detectionStatus: document.getElementById('detectionStatus'),
     maxSignal: document.getElementById('maxSignal'),
-    currentDb: document.getElementById('currentDb')
+    currentDb: document.getElementById('currentDb'),
+    rotationDurationDisplay: document.getElementById('rotationDurationDisplay')
 };
 
 let detectionInterval = null;
@@ -242,6 +243,11 @@ async function pollStatus() {
         
         // Update plot with current results
         drawPolarPlot(data.results);
+        
+        // Update rotation duration display
+        if (data.rotation_duration !== undefined && statusIndicators.rotationDurationDisplay) {
+            statusIndicators.rotationDurationDisplay.textContent = `${data.rotation_duration}s`;
+        }
 
     } catch (error) {
         console.error("Polling error:", error);
@@ -279,8 +285,12 @@ async function calibrateRotation(duration) {
         const data = await response.json();
         
         if (data.status === 'success') {
-            calibrateMsg.textContent = data.message;
+            calibrateMsg.textContent = data.message + (data.saved ? ' (Saved to config)' : '');
             calibrateMsg.className = 'text-sm mt-2 text-green-600';
+            // Update rotation duration display immediately
+            if (statusIndicators.rotationDurationDisplay) {
+                statusIndicators.rotationDurationDisplay.textContent = `${duration}s`;
+            }
         } else {
             calibrateMsg.textContent = 'Error: ' + data.message;
             calibrateMsg.className = 'text-sm mt-2 text-red-600';
@@ -294,9 +304,45 @@ async function calibrateRotation(duration) {
     }
 }
 
+// --- Load Saved Config ---
+async function loadSavedConfig() {
+    try {
+        const response = await fetch(`${API_URL}/config`);
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.config) {
+            // Apply saved speed
+            if (data.config.speed !== undefined) {
+                const speedSlider = document.getElementById('speedSlider');
+                const speedValue = document.getElementById('speedValue');
+                if (speedSlider && speedValue) {
+                    speedSlider.value = data.config.speed;
+                    speedValue.textContent = data.config.speed;
+                }
+            }
+            
+            // Apply saved rotation duration
+            if (data.config.rotation_duration !== undefined) {
+                const rotationInput = document.getElementById('rotationDuration');
+                if (rotationInput) {
+                    rotationInput.value = data.config.rotation_duration;
+                }
+                if (statusIndicators.rotationDurationDisplay) {
+                    statusIndicators.rotationDurationDisplay.textContent = `${data.config.rotation_duration}s`;
+                }
+            }
+            
+            console.log('Loaded saved config:', data.config);
+        }
+    } catch (error) {
+        console.error('Error loading saved config:', error);
+    }
+}
+
 // Start polling when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     startPolling();
+    loadSavedConfig();  // Load saved config values
     
     // Setup calibration form handler
     const calibrateForm = document.getElementById('calibrateForm');

@@ -99,6 +99,13 @@
             <!-- Right Panel: Signal Detection -->
             <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-lg flex flex-col items-center">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Signal Triangulation</h2>
+                
+                <!-- Rotation Duration Display -->
+                <div class="w-full mb-4 p-3 bg-gray-100 rounded-lg text-center">
+                    <span class="text-gray-600 text-sm">Rotation Duration per Step:</span>
+                    <span id="rotationDurationDisplay" class="text-lg font-bold text-primary ml-2">0.3s</span>
+                </div>
+                
                 <button id="detectButton" onclick="startDetection()" class="w-full bg-secondary text-white py-3 rounded-xl font-bold text-lg hover:bg-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-300 control-button transition duration-150 ease-in-out disabled:opacity-50" disabled>
                     Start Full 360° Scan
                 </button>
@@ -120,11 +127,11 @@
                     <input type="number" 
                            id="rotationDuration" 
                            name="rotationDuration" 
-                           min="0.1" 
+                           min="0.01" 
                            max="30" 
-                           step="0.1" 
-                           value="3" 
-                           placeholder="e.g., 3"
+                           step="0.01" 
+                           value="0.3" 
+                           placeholder="e.g., 0.75"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-150 ease-in-out">
                 </div>
                 <button type="submit" 

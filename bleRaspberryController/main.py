@@ -5,13 +5,38 @@ import time
 import numpy as np
 import json
 from enum import Enum
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from rtl_sdr_driver import RtlSdrDriver
 from ble_car_driver import BleCarDriver, CarMove
 
 import os
 WEB_DIR = os.path.join(os.path.dirname(__file__), 'web')
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
 app = Flask(__name__, static_folder=WEB_DIR)
+
+# --- Config File Management ---
+def load_config():
+    """Load configuration from config.json file."""
+    default_config = {'rotation_duration': 0.3, 'speed': 15}
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+                # Merge with defaults to ensure all keys exist
+                return {**default_config, **config}
+    except Exception as e:
+        print(f"Error loading config: {e}")
+    return default_config
+
+def save_config(config):
+    """Save configuration to config.json file."""
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error saving config: {e}")
+        return False
 
 # Global state to share data between the main Flask thread and background tasks
 global_state = {
@@ -124,9 +149,11 @@ def run_detection_cycle():
         global_state['current_angle'] = current_angle
         print(f"Detection: Step {step+1}/{TOTAL_STEPS} at {current_angle}°")
 
-        # 1. Car Movement: Rotate to the new position
+        # 1. Car Movement: Rotate to the new position (using saved rotation_duration)
+        config = load_config()
+        rotation_duration = config.get('rotation_duration', 0.3)
         try:
-            run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, 0.3))
+            run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, rotation_duration))
         except Exception as e:
             print(f"BLE ERROR during move: {e}")
             global_state['detection_running'] = False
@@ -218,6 +245,10 @@ def set_speed(value):
     
     try:
         car_driver.set_speed(value)
+        # Save speed to config file
+        config = load_config()
+        config['speed'] = value
+        save_config(config)
         return jsonify({'status': 'success', 'speed': car_driver.get_current_speed()})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
@@ -261,9 +292,9 @@ def calibrate():
         return jsonify({'status': 'error', 'message': 'Car not connected.'})
     
     try:
-        from flask import request
         data = request.get_json()
         duration = float(data.get('duration', 3))
+        save_to_config = data.get('save', True)  # By default, save to config
         
         if duration <= 0 or duration > 30:
             return jsonify({'status': 'error', 'message': 'Duration must be between 0 and 30 seconds.'})
@@ -271,7 +302,13 @@ def calibrate():
         # Rotate the car to the right for the specified duration (same as triangulation)
         run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, duration))
         
-        return jsonify({'status': 'success', 'message': f'Calibration rotation completed for {duration} seconds.'})
+        # Save rotation_duration to config file if requested
+        if save_to_config:
+            config = load_config()
+            config['rotation_duration'] = duration
+            save_config(config)
+        
+        return jsonify({'status': 'success', 'message': f'Calibration rotation completed for {duration} seconds.', 'saved': save_to_config})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
 
@@ -286,13 +323,22 @@ def get_detection_status():
         except:
             pass
     
+    config = load_config()
     return jsonify({
         'running': global_state['detection_running'],
         'results': global_state['detection_results'],
         'car_connected': global_state['car_connected'],
         'sdr_ready': global_state['sdr_ready'],
-        'current_db': current_db
+        'current_db': current_db,
+        'rotation_duration': config.get('rotation_duration', 0.3)
     })
+
+
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    """Returns the saved configuration."""
+    config = load_config()
+    return jsonify({'status': 'success', 'config': config})
 
 
 @app.route('/')
