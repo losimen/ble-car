@@ -117,9 +117,9 @@ atexit.register(shutdown_ble)
 # --- Configuration ---
 WATCH_FREQ_MHZ = 433.4
 SAMPLE_RATE_HZ = 1024000
-ROTATION_STEP_DEGREES = 30 # How many degrees to turn per step in detection cycle
+ROTATION_STEP_DEGREES = 45 # How many degrees to turn per step in detection cycle
 MEASUREMENT_TIME_SECONDS = 0.5 # How long to measure at each position
-TOTAL_STEPS = 360 // ROTATION_STEP_DEGREES
+TOTAL_STEPS = 8  # 0, 45, 90, 135, 180, 225, 270, 315 degrees (360° scan)
 
 # ====================================================================
 # 3. BACKGROUND TASK LOGIC (Detection Cycle)
