@@ -164,20 +164,19 @@ def run_detection_cycle():
             global_state['detection_results'][current_angle] = round(avg_power, 2)
             print(f"Result at {current_angle}°: {avg_power:.2f} dB")
         
-        # 3. Car Movement AFTER: Rotate to the next position (skip on last step)
-        if step < TOTAL_STEPS - 1:
-            rotation_duration = config.get('rotation_duration', 0.3)
-            try:
-                run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, rotation_duration))
-            except Exception as e:
-                print(f"BLE ERROR during move: {e}")
-                global_state['detection_running'] = False
-                break
-            
-            time.sleep(0.1) # Brief pause before next measurement
+        # 3. Car Movement AFTER: Rotate to the next position (always rotate, including last step to return to 0°)
+        rotation_duration = config.get('rotation_duration', 0.3)
+        try:
+            run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, rotation_duration))
+        except Exception as e:
+            print(f"BLE ERROR during move: {e}")
+            global_state['detection_running'] = False
+            break
+        
+        time.sleep(0.1) # Brief pause before next measurement
 
     global_state['detection_running'] = False
-    print("--- DETECTION CYCLE COMPLETE ---")
+    print("--- DETECTION CYCLE COMPLETE - Returned to 0° ---")
 
 async def async_move_and_wait(direction, duration):
     """Helper to run async car commands."""
