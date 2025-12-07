@@ -252,6 +252,30 @@ def start_detection():
     return jsonify({'status': 'running', 'message': 'Detection cycle started in background.'})
 
 
+@app.route('/api/calibrate', methods=['POST'])
+def calibrate():
+    """Rotates the car for a specified duration (in seconds) for calibration purposes."""
+    global car_driver
+    
+    if not global_state['car_connected']:
+        return jsonify({'status': 'error', 'message': 'Car not connected.'})
+    
+    try:
+        from flask import request
+        data = request.get_json()
+        duration = float(data.get('duration', 3))
+        
+        if duration <= 0 or duration > 30:
+            return jsonify({'status': 'error', 'message': 'Duration must be between 0 and 30 seconds.'})
+        
+        # Rotate the car to the right for the specified duration (same as triangulation)
+        run_in_ble_loop(async_move_and_wait(CarMove.RIGHT, duration))
+        
+        return jsonify({'status': 'success', 'message': f'Calibration rotation completed for {duration} seconds.'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+
 @app.route('/api/detect/status', methods=['GET'])
 def get_detection_status():
     """Endpoint for the frontend to poll for status and results."""

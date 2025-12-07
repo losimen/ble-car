@@ -259,6 +259,55 @@ function startPolling() {
     pollStatus(); // Initial status check
 }
 
+// --- Calibration ---
+async function calibrateRotation(duration) {
+    const calibrateBtn = document.getElementById('calibrateButton');
+    const calibrateMsg = document.getElementById('calibrateMessage');
+    
+    calibrateBtn.disabled = true;
+    calibrateMsg.textContent = `Rotating for ${duration} seconds...`;
+    calibrateMsg.className = 'text-sm mt-2 text-blue-600';
+    
+    try {
+        const response = await fetch(`${API_URL}/calibrate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ duration: parseFloat(duration) })
+        });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            calibrateMsg.textContent = data.message;
+            calibrateMsg.className = 'text-sm mt-2 text-green-600';
+        } else {
+            calibrateMsg.textContent = 'Error: ' + data.message;
+            calibrateMsg.className = 'text-sm mt-2 text-red-600';
+        }
+    } catch (error) {
+        console.error("Calibration error:", error);
+        calibrateMsg.textContent = 'Calibration failed. Check server console.';
+        calibrateMsg.className = 'text-sm mt-2 text-red-600';
+    } finally {
+        calibrateBtn.disabled = false;
+    }
+}
+
 // Start polling when the page loads
-document.addEventListener('DOMContentLoaded', startPolling);
+document.addEventListener('DOMContentLoaded', () => {
+    startPolling();
+    
+    // Setup calibration form handler
+    const calibrateForm = document.getElementById('calibrateForm');
+    if (calibrateForm) {
+        calibrateForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const duration = document.getElementById('rotationDuration').value;
+            if (duration && parseFloat(duration) > 0) {
+                calibrateRotation(duration);
+            }
+        });
+    }
+});
 
